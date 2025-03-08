@@ -1,0 +1,55 @@
+default:
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+
+stages:
+  - build
+  - custom-sast
+  - custom-dast
+  - release
+  - deploy
+  - cleanup
+
+variables:
+  PROD_SRV: prodsrv
+  CONTAINER_TEST_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  CONTAINER_RELEASE_IMAGE: $CI_REGISTRY_IMAGE:latest
+
+build-job:
+  stage: build
+  script:
+    - docker build --pull -t $CONTAINER_TEST_IMAGE .
+    - docker push $CONTAINER_TEST_IMAGE
+
+sast-scanner:
+  stage: custom-sast
+  script:
+    - docker pull $CONTAINER_TEST_IMAGE
+    - echo "No sast scanner for now"
+
+dast-scanner:
+  stage: custom-dast
+  script:
+    - docker pull $CONTAINER_TEST_IMAGE
+    - echo "no dast scanner for now"
+
+release-image:
+  stage: release
+  script:
+    - docker pull $CONTAINER_TEST_IMAGE
+    - docker tag $CONTAINER_TEST_IMAGE $CONTAINER_RELEASE_IMAGE
+    - docker push $CONTAINER_RELEASE_IMAGE
+
+deploy-prod:
+  stage: deploy
+  script:
+    - sudo apt-get update
+    - sudo apt-get -y install sshpass
+    - sshpass -p "$SSH_PWD" scp -o StrictHostKeyChecking=no deploy.sh $SSH_USER@$PROD_SRV:/tmp
+    - sshpass -p "$SSH_PWD" ssh -o StrictHostKeyChecking=no $SSH_USER@$PROD_SRV "chmod +x /tmp/deploy.sh && /tmp/deploy.sh $CONTAINER_RELEASE_IMAGE $CI_REGISTRY $CI_REGISTRY_USER $CI_REGISTRY_PASSWORD && rm /tmp/deploy.sh"
+  environment: production
+
+cleanup-runner:
+  stage: cleanup
+  script:
+    - docker system prune -f

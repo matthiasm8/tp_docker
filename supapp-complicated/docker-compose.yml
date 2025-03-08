@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+  web:
+    image: nginx:latest
+    ports:
+      - "8080:80"
+  supapp:
+    build: ./supapp
+    depends_on:
+      - web
+  weather:
+    build: ./weather
+    depends_on:
+      - web
+  db :
+    
